@@ -1,5 +1,6 @@
 package com.vitalbite.documental;
 
+import com.vitalbite.documental.config.DotenvConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
@@ -7,7 +8,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class VitalbiteDocumentalApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(VitalbiteDocumentalApplication.class, args);
+        // Cargar .env antes que todo
+        new DotenvConfig();
+        SpringApplication.run(
+                VitalbiteDocumentalApplication.class, args);
     }
 
 }
