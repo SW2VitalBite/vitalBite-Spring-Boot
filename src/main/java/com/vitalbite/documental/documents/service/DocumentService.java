@@ -1,6 +1,7 @@
 package com.vitalbite.documental.documents.service;
 
 import com.vitalbite.documental.documents.dto.DietPdfRequestDTO;
+import com.vitalbite.documental.documents.dto.InvoicePdfRequestDTO;
 import com.vitalbite.documental.documents.dto.DocumentResponseDTO;
 import com.vitalbite.documental.documents.entity.DocumentMetadata;
 import com.vitalbite.documental.documents.entity.DocumentMetadataRepository;
@@ -82,6 +83,44 @@ public class DocumentService {
                 nombreArchivo,
                 900L,
                 "PDF de dieta generado correctamente"
+        );
+    }
+
+    public DocumentResponseDTO generateInvoicePdf(InvoicePdfRequestDTO request) {
+        log.info("Generando PDF de factura para tenant: {}", request.getTenantId());
+
+        byte[] pdfBytes = pdfGeneratorService.generateInvoicePdf(request);
+        log.debug("PDF generado: {} bytes", pdfBytes.length);
+
+        String nombreArchivo = "factura-"
+                + request.getTenantId() + "-"
+                + UUID.randomUUID().toString().substring(0, 8)
+                + ".pdf";
+
+        storageService.uploadPdf(pdfBytes, nombreArchivo);
+        String url = storageService.generatePresignedUrl(nombreArchivo);
+        log.info("Factura disponible en: {}", url);
+
+        String hash = generarHash(pdfBytes);
+
+        DocumentMetadata metadata = new DocumentMetadata();
+        metadata.setNombreArchivo(nombreArchivo);
+        metadata.setTipoDocumento("INVOICE_PDF");
+        metadata.setTenantId(request.getTenantId());
+        metadata.setResourceId(request.getTransactionHash());
+        metadata.setS3Url(url);
+        metadata.setHashDocumento(hash);
+        metadata.setEstado("GENERADO");
+
+        DocumentMetadata saved = repository.save(metadata);
+        log.info("Metadatos de factura guardados con ID: {}", saved.getId());
+
+        return new DocumentResponseDTO(
+                saved.getId(),
+                url,
+                nombreArchivo,
+                900L,
+                "Factura PDF generada correctamente"
         );
     }
 

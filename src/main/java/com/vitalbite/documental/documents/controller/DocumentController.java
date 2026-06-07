@@ -1,6 +1,7 @@
 package com.vitalbite.documental.documents.controller;
 
 import com.vitalbite.documental.documents.dto.DietPdfRequestDTO;
+import com.vitalbite.documental.documents.dto.InvoicePdfRequestDTO;
 import com.vitalbite.documental.documents.dto.DocumentResponseDTO;
 import com.vitalbite.documental.documents.service.DocumentService;
 import com.vitalbite.documental.documents.service.PdfGeneratorService;
@@ -37,6 +38,18 @@ public class DocumentController {
         log.info("Request recibido para generar PDF de dieta");
         DocumentResponseDTO response =
                 documentService.generateDietPdf(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/pdf/invoice")
+    @Operation(
+            summary = "Generar PDF de factura",
+            description = "Recibe datos de pago desde el microservicio .NET y genera una factura en PDF con el Hash de la Blockchain"
+    )
+    public ResponseEntity<DocumentResponseDTO> generateInvoicePdf(
+            @RequestBody InvoicePdfRequestDTO request) {
+        log.info("Request recibido para generar PDF de factura");
+        DocumentResponseDTO response = documentService.generateInvoicePdf(request);
         return ResponseEntity.ok(response);
     }
 

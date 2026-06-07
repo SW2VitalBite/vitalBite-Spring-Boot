@@ -14,6 +14,7 @@ import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
 import com.itextpdf.layout.properties.VerticalAlignment;
 import com.vitalbite.documental.documents.dto.DietPdfRequestDTO;
+import com.vitalbite.documental.documents.dto.InvoicePdfRequestDTO;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -306,7 +307,65 @@ public class PdfGeneratorService {
                 .setMarginTop(5));
     }
 
-    private String safe(String value) {
-        return value != null ? value : "";
+    private String safe(String val) {
+        return val == null ? "" : val;
+    }
+
+    public byte[] generateInvoicePdf(InvoicePdfRequestDTO request) {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        PdfWriter writer = new PdfWriter(outputStream);
+        PdfDocument pdfDoc = new PdfDocument(writer);
+        Document document = new Document(pdfDoc);
+        document.setMargins(40, 40, 40, 40);
+
+        // Header
+        document.add(new Paragraph("FACTURA DE SUSCRIPCIÓN")
+                .setFontSize(22)
+                .setBold()
+                .setFontColor(COLOR_PRIMARY)
+                .setTextAlignment(TextAlignment.RIGHT)
+                .setMarginBottom(20));
+
+        // Details
+        document.add(new Paragraph("Clínica / Usuario: " + safe(request.getClinicName()))
+                .setFontSize(12).setBold());
+        document.add(new Paragraph("Fecha de facturación: " + safe(request.getDate()))
+                .setFontSize(10).setFontColor(COLOR_GRAY).setMarginBottom(20));
+
+        // Table
+        Table table = new Table(UnitValue.createPercentArray(new float[]{60, 20, 20}))
+                .setWidth(UnitValue.createPercentValue(100))
+                .setMarginBottom(30);
+
+        table.addHeaderCell(new Cell().add(new Paragraph("Descripción")).setBackgroundColor(COLOR_PRIMARY).setFontColor(COLOR_WHITE));
+        table.addHeaderCell(new Cell().add(new Paragraph("Periodo")).setBackgroundColor(COLOR_PRIMARY).setFontColor(COLOR_WHITE));
+        table.addHeaderCell(new Cell().add(new Paragraph("Subtotal")).setBackgroundColor(COLOR_PRIMARY).setFontColor(COLOR_WHITE));
+
+        table.addCell(new Cell().add(new Paragraph("Suscripción Plan: " + safe(request.getPlanName()))).setPadding(10));
+        table.addCell(new Cell().add(new Paragraph(safe(request.getBillingPeriod()))).setPadding(10));
+        table.addCell(new Cell().add(new Paragraph("$" + String.format("%.2f", request.getAmount()))).setPadding(10));
+
+        document.add(table);
+
+        // Total
+        document.add(new Paragraph("TOTAL: $" + String.format("%.2f", request.getAmount()))
+                .setFontSize(16)
+                .setBold()
+                .setTextAlignment(TextAlignment.RIGHT)
+                .setMarginBottom(40));
+
+        // Footer / Blockchain Hash
+        document.add(new Paragraph("Registro de Auditoría Blockchain")
+                .setFontSize(10)
+                .setBold()
+                .setFontColor(COLOR_PRIMARY)
+                .setMarginBottom(5));
+        
+        document.add(new Paragraph("ID Transacción (Hash): " + safe(request.getTransactionHash()))
+                .setFontSize(8)
+                .setFontColor(COLOR_GRAY));
+
+        document.close();
+        return outputStream.toByteArray();
     }
 }
