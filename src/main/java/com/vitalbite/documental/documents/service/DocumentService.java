@@ -98,4 +98,8 @@ public class DocumentService {
             return "hash-no-disponible";
         }
     }
+
+    public java.util.List<DocumentMetadata> getDocumentsByPatientId(String patientId) {
+        return repository.findByPatientId(patientId);
+    }
 }

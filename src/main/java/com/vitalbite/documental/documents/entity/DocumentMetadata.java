@@ -44,11 +44,20 @@ public class DocumentMetadata {
 
     private LocalDateTime fechaExpiracion;
 
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
     @PrePersist
     public void prePersist() {
         this.fechaCreacion = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
         if (this.estado == null) {
             this.estado = "GENERADO";
         }
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }

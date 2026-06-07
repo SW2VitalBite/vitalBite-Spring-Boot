@@ -2,50 +2,45 @@ package com.vitalbite.documental.storage.service;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import java.util.UUID;
+import jakarta.annotation.PostConstruct;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 @Service
 public class StorageService {
 
-    @Value("${aws.s3.mock-enabled:true}")
-    private boolean mockEnabled;
+    @Value("${server.port:8080}")
+    private String serverPort;
 
-    @Value("${aws.s3.bucket-name}")
-    private String bucketName;
+    private final String uploadDir = "uploads/";
 
-    @Value("${aws.s3.presigned-url-expiration:15}")
-    private Long expirationMinutes;
-
-    public String uploadPdf(byte[] pdfBytes,
-                            String nombreArchivo) {
-
-        if (mockEnabled) {
-            System.out.println(
-                    ">>> [MOCK S3] Subiendo: " + nombreArchivo
-                            + " | Tamaño: " + pdfBytes.length + " bytes"
-            );
-            return bucketName + "/" + nombreArchivo;
+    @PostConstruct
+    public void init() {
+        try {
+            Files.createDirectories(Paths.get(uploadDir));
+        } catch (IOException e) {
+            throw new RuntimeException("No se pudo crear el directorio de subidas", e);
         }
-
-        throw new UnsupportedOperationException(
-                "S3 real no configurado todavía"
-        );
     }
 
-    public String generatePresignedUrl(String nombreArchivo) {
-
-        if (mockEnabled) {
-            String token = UUID.randomUUID()
-                    .toString().substring(0, 12);
-            return "https://mock-s3.local/"
-                    + bucketName + "/" + nombreArchivo
-                    + "?X-Amz-Expires="
-                    + (expirationMinutes * 60)
-                    + "&token=" + token;
+    public String uploadPdf(byte[] pdfBytes, String nombreArchivo) {
+        try {
+            Path filePath = Paths.get(uploadDir + nombreArchivo);
+            Files.write(filePath, pdfBytes);
+            System.out.println(">>> [LOCAL STORAGE] Archivo guardado localmente: " + filePath.toAbsolutePath());
+            return nombreArchivo;
+        } catch (IOException e) {
+            throw new RuntimeException("Error guardando el archivo localmente", e);
         }
+    }
 
-        throw new UnsupportedOperationException(
-                "S3 real no configurado todavía"
-        );
+    @Value("${server.servlet.context-path:}")
+    private String contextPath;
+
+    public String generatePresignedUrl(String nombreArchivo) {
+        // En vez de S3, devolvemos la URL de nuestro propio controlador de descargas
+        return "http://localhost:" + serverPort + contextPath + "/documents/download/" + nombreArchivo;
     }
 }

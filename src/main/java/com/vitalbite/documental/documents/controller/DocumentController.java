@@ -75,4 +75,29 @@ public class DocumentController {
                 "Módulo documental funcionando correctamente"
         );
     }
+
+    @GetMapping("/download/{fileName}")
+    @Operation(summary = "Descargar un documento local", description = "Descarga un documento guardado localmente en el directorio uploads")
+    public ResponseEntity<org.springframework.core.io.Resource> downloadFile(@PathVariable String fileName) {
+        try {
+            java.nio.file.Path filePath = java.nio.file.Paths.get("uploads/" + fileName);
+            org.springframework.core.io.Resource resource = new org.springframework.core.io.UrlResource(filePath.toUri());
+            if (resource.exists() || resource.isReadable()) {
+                return ResponseEntity.ok()
+                        .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                        .body(resource);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (java.net.MalformedURLException e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/patient/{patientId}")
+    @Operation(summary = "Listar documentos por paciente", description = "Devuelve una lista de los documentos generados para el paciente")
+    public ResponseEntity<java.util.List<com.vitalbite.documental.documents.entity.DocumentMetadata>> getDocumentsByPatient(@PathVariable String patientId) {
+        return ResponseEntity.ok(documentService.getDocumentsByPatientId(patientId));
+    }
 }
