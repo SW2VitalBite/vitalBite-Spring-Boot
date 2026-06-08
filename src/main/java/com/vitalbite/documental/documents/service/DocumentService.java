@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -23,15 +24,12 @@ public class DocumentService {
     private final StorageService storageService;
     private final DocumentMetadataRepository repository;
 
-    public DocumentResponseDTO generateDietPdf(
-            DietPdfRequestDTO request) {
+    public DocumentResponseDTO generateDietPdf(DietPdfRequestDTO request) {
 
-        log.info("Generando PDF de dieta para paciente: {}",
-                request.getPatientFullName());
+        log.info("Generando PDF de dieta para paciente: {}", request.getPatientFullName());
 
         // 1. Generar PDF en memoria
-        byte[] pdfBytes =
-                pdfGeneratorService.generateDietPdf(request);
+        byte[] pdfBytes = pdfGeneratorService.generateDietPdf(request);
         log.debug("PDF generado: {} bytes", pdfBytes.length);
 
         // 2. Nombre único para el archivo
@@ -46,10 +44,9 @@ public class DocumentService {
                 + UUID.randomUUID().toString().substring(0, 8)
                 + ".pdf";
 
-        // 3. Subir a S3 (mock por ahora)
-        storageService.uploadPdf(pdfBytes, nombreArchivo);
-        String url = storageService
-                .generatePresignedUrl(nombreArchivo);
+        // 3. Subir a S3 — capturamos el key real (incluye prefijo "pdfs/")
+        String s3Key = storageService.uploadPdf(pdfBytes, nombreArchivo);
+        String url = storageService.generatePresignedUrl(s3Key);
         log.info("PDF disponible en: {}", url);
 
         // 4. Hash SHA-256 para auditoría
@@ -57,31 +54,27 @@ public class DocumentService {
 
         // 5. Guardar metadatos en PostgreSQL
         DocumentMetadata metadata = new DocumentMetadata();
-        metadata.setNombreArchivo(nombreArchivo);
+        metadata.setNombreArchivo(s3Key);
         metadata.setTipoDocumento("DIETA_PDF");
         metadata.setTenantId(request.getTenantId());
         metadata.setPatientId(request.getPatientId());
-        metadata.setNutritionistId(
-                request.getNutritionistId());
+        metadata.setNutritionistId(request.getNutritionistId());
         metadata.setResourceId(request.getId());
-        metadata.setPacienteNombre(
-                request.getPatientFullName());
-        metadata.setNutricionistaNombre(
-                request.getNutritionistFullName());
+        metadata.setPacienteNombre(request.getPatientFullName());
+        metadata.setNutricionistaNombre(request.getNutritionistFullName());
         metadata.setS3Url(url);
         metadata.setHashDocumento(hash);
         metadata.setEstado("GENERADO");
 
         DocumentMetadata saved = repository.save(metadata);
-        log.info("Metadatos guardados con ID: {}",
-                saved.getId());
+        log.info("Metadatos guardados con ID: {}", saved.getId());
 
         // 6. Respuesta al Core
         return new DocumentResponseDTO(
                 saved.getId(),
                 url,
-                nombreArchivo,
-                900L,
+                s3Key,
+                (long) (expirationSeconds()),
                 "PDF de dieta generado correctamente"
         );
     }
@@ -97,14 +90,15 @@ public class DocumentService {
                 + UUID.randomUUID().toString().substring(0, 8)
                 + ".pdf";
 
-        storageService.uploadPdf(pdfBytes, nombreArchivo);
-        String url = storageService.generatePresignedUrl(nombreArchivo);
+        // Capturamos el key real retornado por uploadPdf
+        String s3Key = storageService.uploadPdf(pdfBytes, nombreArchivo);
+        String url = storageService.generatePresignedUrl(s3Key);
         log.info("Factura disponible en: {}", url);
 
         String hash = generarHash(pdfBytes);
 
         DocumentMetadata metadata = new DocumentMetadata();
-        metadata.setNombreArchivo(nombreArchivo);
+        metadata.setNombreArchivo(s3Key);
         metadata.setTipoDocumento("INVOICE_PDF");
         metadata.setTenantId(request.getTenantId());
         metadata.setResourceId(request.getTransactionHash());
@@ -118,27 +112,32 @@ public class DocumentService {
         return new DocumentResponseDTO(
                 saved.getId(),
                 url,
-                nombreArchivo,
-                900L,
+                s3Key,
+                (long) (expirationSeconds()),
                 "Factura PDF generada correctamente"
         );
     }
 
+    /**
+     * 15 minutos en segundos — igual que aws.s3.presigned-url-expiration.
+     * Si cambias el valor en application.properties, cámbialo aquí también.
+     */
+    private int expirationSeconds() {
+        return 15 * 60; // 900 segundos
+    }
+
     private String generarHash(byte[] data) {
         try {
-            MessageDigest digest =
-                    MessageDigest.getInstance("SHA-256");
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hashBytes = digest.digest(data);
-            return Base64.getEncoder()
-                    .encodeToString(hashBytes);
+            return Base64.getEncoder().encodeToString(hashBytes);
         } catch (Exception e) {
-            log.error("Error generando hash: {}",
-                    e.getMessage());
+            log.error("Error generando hash: {}", e.getMessage());
             return "hash-no-disponible";
         }
     }
 
-    public java.util.List<DocumentMetadata> getDocumentsByPatientId(String patientId) {
+    public List<DocumentMetadata> getDocumentsByPatientId(String patientId) {
         return repository.findByPatientId(patientId);
     }
 }
