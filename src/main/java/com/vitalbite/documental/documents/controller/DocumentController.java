@@ -87,4 +87,17 @@ public class DocumentController {
             @PathVariable String patientId) {
         return ResponseEntity.ok(documentService.getDocumentsByPatientId(patientId));
     }
+
+    @GetMapping("/diet/{dietId}")
+    @Operation(
+            summary = "Obtener el PDF de una dieta",
+            description = "Devuelve el último PDF generado para un plan de dieta con una " +
+                    "URL prefirmada fresca. Responde 404 si todavía no se generó ninguno."
+    )
+    public ResponseEntity<DocumentResponseDTO> getDietPdf(
+            @PathVariable String dietId) {
+        return documentService.findLatestDietPdf(dietId)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
 }
