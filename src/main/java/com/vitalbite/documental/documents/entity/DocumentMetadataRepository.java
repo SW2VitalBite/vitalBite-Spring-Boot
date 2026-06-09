@@ -13,6 +13,14 @@ public interface DocumentMetadataRepository
     // Buscar todos los documentos de un paciente
     List<DocumentMetadata> findByPatientId(String patientId);
 
+    // Documentos de un paciente, los más recientes primero
+    List<DocumentMetadata> findByPatientIdOrderByFechaCreacionDesc(String patientId);
+
+    // Último documento generado para un recurso concreto (dieta, ficha, …) y tipo
+    java.util.Optional<DocumentMetadata>
+            findFirstByResourceIdAndTipoDocumentoOrderByFechaCreacionDesc(
+                    String resourceId, String tipoDocumento);
+
     // Buscar por tipo de documento
     List<DocumentMetadata> findByTipoDocumento(
             String tipoDocumento);

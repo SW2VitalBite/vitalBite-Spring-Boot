@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -138,6 +139,37 @@ public class DocumentService {
     }
 
     public List<DocumentMetadata> getDocumentsByPatientId(String patientId) {
-        return repository.findByPatientId(patientId);
+        List<DocumentMetadata> documentos =
+                repository.findByPatientIdOrderByFechaCreacionDesc(patientId);
+
+        // Las URLs prefirmadas guardadas caducan (15 min). Las regeneramos a partir
+        // del key de S3 (almacenado en `nombreArchivo`) para que el móvil siempre
+        // reciba un enlace válido al listar los documentos.
+        for (DocumentMetadata doc : documentos) {
+            try {
+                doc.setS3Url(storageService.generatePresignedUrl(doc.getNombreArchivo()));
+            } catch (Exception e) {
+                log.warn("[S3] No se pudo refrescar la URL de {}: {}",
+                        doc.getNombreArchivo(), e.getMessage());
+            }
+        }
+        return documentos;
+    }
+
+    /**
+     * Devuelve el último PDF de dieta generado para un plan concreto, con una URL
+     * prefirmada fresca. El Core lo usa para reutilizar el PDF que el nutricionista
+     * generó desde la web antes de decidir si hay que generar uno nuevo.
+     */
+    public Optional<DocumentResponseDTO> findLatestDietPdf(String dietId) {
+        return repository
+                .findFirstByResourceIdAndTipoDocumentoOrderByFechaCreacionDesc(
+                        dietId, "DIETA_PDF")
+                .map(doc -> new DocumentResponseDTO(
+                        doc.getId(),
+                        storageService.generatePresignedUrl(doc.getNombreArchivo()),
+                        doc.getNombreArchivo(),
+                        (long) expirationSeconds(),
+                        "PDF de dieta existente recuperado"));
     }
 }
